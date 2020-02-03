@@ -29,14 +29,14 @@
           "name": "[concat(parameters('commonAIName'), '/', 'pricingPlans')]",
           "type": "Microsoft.Insights/components/pricingPlans",
           "properties": {
-            "PricingType": "Basic",
-            "DataVolumeCap": 120,
-            "ResetHour": 13,
-            "DisableNotificationWhenHitCap": false,
-            "WarningThreshold": 90,
-            "DisableNotificationWhenHitThreshold": false,
-            "MaxHistoryCap": 1000,
-            "IsDreamSpark": false
+            "PricingType": "Basic", // Basic seems to be the only option here
+            "DataVolumeCap": 130, // Cap in GB
+            "ResetHour": 13, // When does daily cap reset. Not sure of the timezone
+            "DisableNotificationWhenHitCap": false, 
+            "WarningThreshold": 90, // Percentage of cap filled
+            "DisableNotificationWhenHitThreshold": false, 
+            "MaxHistoryCap": 1000, // No idea what this is
+            "IsDreamSpark": false // No idea what this is
           },
           "dependsOn": [
             "[parameters('commonAIName')]"
