@@ -1,0 +1,50 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "commonAIName": {"type": "string"},
+    "location": {"type": "string"}
+  },
+  "variables": {},
+  "resources": [
+    {
+      "apiVersion": "2015-05-01",
+      "type": "Microsoft.Insights/components",
+      "kind": "web",
+      "name": "[parameters('commonAIName')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "displayName": "Common Application Insights"
+      },
+      "scale": null,
+      "properties": {
+        "Application_Type": "web",
+        "Flow_Type": "Bluefield",
+        "Request_Source": "rest"
+      },
+      "resources": [
+        {
+          // See https://github.com/Azure/azure-resource-manager-schemas/blob/master/schemas/2017-10-01/Microsoft.Insights.json for some info on what these properties do
+          "apiVersion": "2017-10-01",
+          "name": "[concat(parameters('commonAIName'), '/', 'pricingPlans')]",
+          "type": "Microsoft.Insights/components/pricingPlans",
+          "properties": {
+            "PricingType": "Basic",
+            "DataVolumeCap": 120,
+            "ResetHour": 13,
+            "DisableNotificationWhenHitCap": false,
+            "WarningThreshold": 90,
+            "DisableNotificationWhenHitThreshold": false,
+            "MaxHistoryCap": 1000,
+            "IsDreamSpark": false
+          },
+          "dependsOn": [
+            "[parameters('commonAIName')]"
+          ]
+        }
+      ]
+    }
+    
+  ],
+  "outputs": {}
+}
