@@ -129,7 +129,7 @@
     },
     // Private DNS & vnet linking for private link name resolution
     {
-      "type": "Microsoft.Network/Names",
+      "type": "Microsoft.Network/privateDnsZones",
       "apiVersion": "2018-09-01",
       "name": "[variables('privateDnsZoneName')]",
       "location": "global",
@@ -157,7 +157,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2017-05-10",
-      "name": "PrivateDns",
+      "name": "[concat('PrivateDns', copyIndex(1))]",
       "dependsOn": [
         "[variables('blobNic')]",
         "[variables('privateDnsZoneName')]"
@@ -166,11 +166,16 @@
         "mode": "Incremental",
         "parameters":{
           "privateDnsZoneName": {"value": "[variables('privateDnsZoneName')]"},
-          "storageNicIpConf": {"value": "[reference(resourceId('Microsoft.Network/networkInterfaces', variables('blobNic')), '2019-07-01').ipConfigurations[0]]"}
+          "storageNicIpConf": {"value": "[reference(resourceId('Microsoft.Network/networkInterfaces', variables('blobNic')), '2019-07-01').ipConfigurations[copyIndex()]]"}
         },
         "templateLink":{
           "uri": "[variables('dnsEntriesTemplateUri')]"
         }
+      },
+      "copy":{
+        "name": "ipconfigCopy",
+        "count": "[length(reference(resourceId('Microsoft.Network/networkInterfaces', variables('blobNic')), '2019-07-01').ipConfigurations)]",
+        "mode": "Parallel"
       }
     },
     // Nic for blob storage private endpoint. Needed to map a network IP
@@ -207,6 +212,7 @@
       "properties": {
         "privateLinkServiceConnections": [
           {
+            // Why this works is a bit unclear, but ARM seems to create the privateLinkServiceConnection by just giving the ID here, like a subnet in a vnet would work.
             "id": "[concat(resourceGroup().id, '/providers/Microsoft.Network/privateEndpoints/privateLinkServiceConnections/', variables('blobNic'))]",
             "name": "[variables('blobNic')]",
             "properties": {

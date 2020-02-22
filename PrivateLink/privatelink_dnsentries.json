@@ -6,7 +6,7 @@
       "type":"string"
     },
     "storageNicIpConf": {
-      "type":"array",
+      "type":"object",
       "metadata":{
         "description": "resource id to ipConfigurations array of private endpoint nic"
       }
@@ -29,3 +29,4 @@
     }
   ]
 }
+"[concat(json(concat('[{\"ipv4Address\":\"', parameters('ipConfig').properties.privateIPAddress,'\"}]')))]",
