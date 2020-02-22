@@ -36,9 +36,9 @@
     "vmNic": "[concat(variables('vmName'), 'nic')]",
     "pipName": "[concat(variables('vmName'), 'pip')]",
     // Blob private link configs
-    "blobNic": "[concat('blobstorage.nic.', uniqueString(resourceGroup().id))]",
-    // Sets ip statically to .10 of the first subnet.
-    "blobPrivateIp": "[replace(parameters('vnetAddressPrefix'), '0/16', '10')]",
+    "privateEndpointTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_endpoint.json",
+    "privateEndpointName": "storageEndpoint",
+    "privateEndpointConnectionName": "[concat(variables('privateEndpointName'), 'conn')]",
     "privateStorageName": "[concat('priv', uniqueString(resourceGroup().id))]",
     // DNS entries
     "dnsEntriesTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries.json",
@@ -153,85 +153,50 @@
         "registrationEnabled": false
       }
     },
-    // Can't use reference in names, so need to do this loop as linked deployment. See the template for more info.
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2017-05-10",
-      "name": "[concat('PrivateDns', copyIndex(1))]",
+      "apiVersion": "2019-04-01",
+      "name": "[variables('privateEndpointName')]",
       "dependsOn": [
-        "[variables('blobNic')]",
+        "[variables('privateDnsZoneName')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "parameters":{
+          "location": {"value": "[parameters('location')]"},
+          "privateEndpointName": {"value": "[variables('privateEndpointName')]"},
+          "privateEndpointConnectionName": {"value": "[variables('privateEndpointConnectionName')]"},
+          "privateStorageId": {"value": "[resourceId('Microsoft.Storage/storageAccounts', variables('privateStorageName'))]"},
+          "subnetId": {"value": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]"}
+        },
+        "templateLink":{
+          "uri": "[variables('privateEndpointTemplateUri')]"
+        },
+        "dependsOn": [
+        "[variables('vnetName')]"
+        ]
+      }
+    },
+    // Need to do this loop as linked deployment. This example only allows for one ipconfiguration in the blob NIC 
+    // If you have multiple ip configurations, you need to pass ipconfigurations array to a linked template, which then does a loop on the array to create the dnsentries.
+    // This is due to limitations of where reference() function can be used (so not in variables, copy loop lengths, resource names...)
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2019-04-01",
+      "name": "PrivateDns",
+      "dependsOn": [
         "[variables('privateDnsZoneName')]"
       ],
       "properties": {
         "mode": "Incremental",
         "parameters":{
           "privateDnsZoneName": {"value": "[variables('privateDnsZoneName')]"},
-          "storageNicIpConf": {"value": "[reference(resourceId('Microsoft.Network/networkInterfaces', variables('blobNic')), '2019-07-01').ipConfigurations[copyIndex()]]"}
+          "storageNicId": {"value": "[reference(reference(variables('privateEndpointName')).outputs.storageNicId.value, '2019-11-01').properties.ipConfigurations[0]]"}
         },
         "templateLink":{
           "uri": "[variables('dnsEntriesTemplateUri')]"
         }
-      },
-      "copy":{
-        "name": "ipconfigCopy",
-        "count": "[length(reference(resourceId('Microsoft.Network/networkInterfaces', variables('blobNic')), '2019-07-01').ipConfigurations)]",
-        "mode": "Parallel"
       }
-    },
-    // Nic for blob storage private endpoint. Needed to map a network IP
-    {
-      "name": "[variables('blobNic')]",
-      "type": "Microsoft.Network/networkInterfaces",
-      "apiVersion": "2019-07-01",
-      "location": "[parameters('location')]",
-      "properties": {
-        "ipConfigurations": [
-          {
-            "name": "blob-blob.privateEndpoint",
-            "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
-            "properties": {
-              "privateIPAddress": "[variables('blobPrivateIp')]",
-              "privateIPAllocationMethod": "Static",
-              "subnet": {
-                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]"
-              },
-              "primary": true,
-              "privateIPAddressVersion": "IPv4"
-            }
-          }
-        ],
-        "enableAcceleratedNetworking": false,
-        "enableIPForwarding": false
-      }
-    },
-    {
-      "apiVersion": "2019-04-01",
-      "name": "blobconnection",
-      "type": "Microsoft.Network/privateEndpoints",
-      "location": "[parameters('location')]",
-      "properties": {
-        "privateLinkServiceConnections": [
-          {
-            // Why this works is a bit unclear, but ARM seems to create the privateLinkServiceConnection by just giving the ID here, like a subnet in a vnet would work.
-            "id": "[concat(resourceGroup().id, '/providers/Microsoft.Network/privateEndpoints/privateLinkServiceConnections/', variables('blobNic'))]",
-            "name": "[variables('blobNic')]",
-            "properties": {
-              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('privateStorageName'))]",
-              "groupIds": [
-                "blob"
-              ]
-            }
-          }
-        ],
-        "manualPrivateLinkServiceConnections": [
-        ],
-        "subnet": {
-          "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]"
-        }
-      },
-      "dependsOn": [
-        "[variables('vnetName')]"
-      ]
     },
     // Below are resources for a VM to test the config
     {
@@ -269,7 +234,7 @@
     {
       "condition": "[parameters('createTesterVM')]",
       "type": "Microsoft.Network/networkInterfaces",
-      "apiVersion": "2019-07-01",
+      "apiVersion": "2019-11-01",
       "name": "[variables('vmNic')]",
       "location": "[parameters('location')]",
       "dependsOn": [

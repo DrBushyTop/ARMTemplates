@@ -1,0 +1,59 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "privateEndpointName": {
+      "type": "string"
+    },
+    "privateEndpointConnectionName": {
+      "type": "string"
+    },
+    "privateStorageId": {
+      "type": "string"
+    },
+    "subnetId": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    }
+  },
+  "variables": {
+  },
+  "resources": [
+    {
+      "apiVersion": "2019-04-01",
+      "name": "[parameters('privateEndpointName')]",
+      "type": "Microsoft.Network/privateEndpoints",
+      "location": "[parameters('location')]",
+      "properties": {
+        "privateLinkServiceConnections": [
+          {
+            // Why this works is a bit unclear, but ARM seems to create the privateLinkServiceConnection by just giving the ID here, like a subnet in a vnet would work.
+            "id": "[concat(resourceGroup().id, '/providers/Microsoft.Network/privateEndpoints/privateLinkServiceConnections/', parameters('privateEndpointConnectionName'))]",
+            "name": "[parameters('privateEndpointConnectionName')]",
+            "properties": {
+              "privateLinkServiceId": "[parameters('privateStorageId')]",
+              "groupIds": [
+                "blob"
+              ]
+            }
+          }
+        ],
+        "manualPrivateLinkServiceConnections": [
+        ],
+        "subnet": {
+          "id": "[parameters('subnetId')]"
+        }
+      }
+    }
+  ],
+  "outputs": {
+    "storageNicId":{
+      "type":"string",
+      "value": "[reference(resourceId('Microsoft.Network/privateEndpoints', parameters('privateEndpointName')), '2019-11-01').networkInterfaces[0].id]"
+    }
+  },
+  "functions": [
+  ]
+}
