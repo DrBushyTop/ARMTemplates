@@ -1,0 +1,346 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope"
+    },
+    "vnetAddressPrefix": {
+      "type": "string",
+      "defaultValue": "10.151.0.0/16"
+    },
+    "createTesterVM": {
+      "type": "bool",
+      "defaultValue": true,
+      "metadata": {
+        "description": "Decides whether VM and related resources get created"
+      }
+    },
+    "adminUsername": {
+      "type": "string",
+      "defaultValue": "superAdmin"
+    },
+    "adminPassword": {
+      "type": "securestring",
+      "defaultValue": "m3g4Secr3t!"
+    }
+  },
+  "variables": {
+    // General
+    "vnetName": "internal-vnet",
+    "subnetName": "private",
+    "nsgName": "[concat(variables('subnetName'), 'nsg')]",
+    // Tester VM vars
+    "vmName": "plinktester",
+    "vmNic": "[concat(variables('vmName'), 'nic')]",
+    "pipName": "[concat(variables('vmName'), 'pip')]",
+    // Blob private link configs
+    "blobNic": "[concat('blobstorage.nic.', uniqueString(resourceGroup().id))]",
+    // Sets ip statically to .10 of the first subnet.
+    "blobPrivateIp": "[replace(parameters('vnetAddressPrefix'), '0/16', '10')]",
+    "privateStorageName": "[concat('priv', uniqueString(resourceGroup().id))]",
+    // DNS entries
+    "dnsEntriesTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries.json",
+    // Don't change this value
+    "privateDnsZoneName": "privatelink.blob.core.windows.net"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Network/virtualNetworks",
+      "apiVersion": "2019-09-01",
+      "name": "[variables('vnetName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+        "addressSpace": {
+          "addressPrefixes": [
+            "[parameters('vnetAddressPrefix')]"
+          ]
+        },
+        "subnets": [
+          {
+            "name": "[variables('subnetName')]",
+            "properties": {
+              "addressPrefix": "[replace(parameters('vnetAddressPrefix'), '/16', '/24')]",
+              "networkSecurityGroup": {
+                "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+              },
+              // see https://docs.microsoft.com/en-us/azure/private-link/disable-private-link-service-network-policy and https://docs.microsoft.com/en-us/azure/private-link/disable-private-endpoint-network-policy
+              "privateEndpointNetworkPolicies": "Disabled"
+            }
+          }
+        ],
+        "enableDdosProtection": false
+      },
+      "dependsOn":[
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Network/networkSecurityGroups",
+      "apiVersion": "2019-02-01",
+      "name": "[variables('nsgName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+      }
+    },
+    // Deny internet access for subnet to make sure we are internal.
+    {
+      "condition": "[parameters('createTesterVM')]",
+      "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+      "apiVersion": "2019-02-01",
+      "name": "[concat(variables('nsgName'), '/', 'DenyInternet')]",
+      "properties": {
+        "priority": 100,
+        "protocol": "TCP",
+        "access": "Deny",
+        "direction": "Outbound",
+        "sourceAddressPrefix": "*",
+        "sourcePortRange": "*",
+        "destinationAddressPrefix": "*",
+        "destinationPortRange": "*"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+      ]
+    },
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2019-06-01",
+      "name": "[variables('privateStorageName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[variables('vnetName')]"
+      ],
+      "sku": {
+        "name": "Standard_LRS"
+      },
+      "kind": "StorageV2",
+      "properties": {
+        "accessTier": "Hot",
+        "supportsHttpsTrafficOnly": true,
+        "networkAcls": {
+          "bypass": "AzureServices",
+          "defaultAction": "Deny",
+          "ipRules": [
+          ]
+        }
+      }
+    },
+    // Private DNS & vnet linking for private link name resolution
+    {
+      "type": "Microsoft.Network/Names",
+      "apiVersion": "2018-09-01",
+      "name": "[variables('privateDnsZoneName')]",
+      "location": "global",
+      "tags": {
+      },
+      "properties": {
+      }
+    },
+    {
+      "type": "Microsoft.Network/privateDnsZones/virtualNetworkLinks",
+      "apiVersion": "2018-09-01",
+      "name": "[concat(variables('privateDnsZoneName'), '/', uniqueString(resourceGroup().id))]",
+      "location": "global",
+      "dependsOn": [
+        "[variables('privateDnsZoneName')]"
+      ],
+      "properties": {
+        "virtualNetwork": {
+          "id": "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+        },
+        "registrationEnabled": false
+      }
+    },
+    // Can't use reference in names, so need to do this loop as linked deployment. See the template for more info.
+    {
+      "type": "Microsoft.Resources/deployments",
+      "apiVersion": "2017-05-10",
+      "name": "PrivateDns",
+      "dependsOn": [
+        "[variables('blobNic')]",
+        "[variables('privateDnsZoneName')]"
+      ],
+      "properties": {
+        "mode": "Incremental",
+        "parameters":{
+          "privateDnsZoneName": {"value": "[variables('privateDnsZoneName')]"},
+          "storageNicIpConf": {"value": "[reference(resourceId('Microsoft.Network/networkInterfaces', variables('blobNic')), '2019-07-01').ipConfigurations[0]]"}
+        },
+        "templateLink":{
+          "uri": "[variables('dnsEntriesTemplateUri')]"
+        }
+      }
+    },
+    // Nic for blob storage private endpoint. Needed to map a network IP
+    {
+      "name": "[variables('blobNic')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2019-07-01",
+      "location": "[parameters('location')]",
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "blob-blob.privateEndpoint",
+            "type": "Microsoft.Network/networkInterfaces/ipConfigurations",
+            "properties": {
+              "privateIPAddress": "[variables('blobPrivateIp')]",
+              "privateIPAllocationMethod": "Static",
+              "subnet": {
+                "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]"
+              },
+              "primary": true,
+              "privateIPAddressVersion": "IPv4"
+            }
+          }
+        ],
+        "enableAcceleratedNetworking": false,
+        "enableIPForwarding": false
+      }
+    },
+    {
+      "apiVersion": "2019-04-01",
+      "name": "blobconnection",
+      "type": "Microsoft.Network/privateEndpoints",
+      "location": "[parameters('location')]",
+      "properties": {
+        "privateLinkServiceConnections": [
+          {
+            "id": "[concat(resourceGroup().id, '/providers/Microsoft.Network/privateEndpoints/privateLinkServiceConnections/', variables('blobNic'))]",
+            "name": "[variables('blobNic')]",
+            "properties": {
+              "privateLinkServiceId": "[resourceId('Microsoft.Storage/storageAccounts', variables('privateStorageName'))]",
+              "groupIds": [
+                "blob"
+              ]
+            }
+          }
+        ],
+        "manualPrivateLinkServiceConnections": [
+        ],
+        "subnet": {
+          "id": "[concat(resourceId('Microsoft.Network/virtualNetworks', variables('vnetName')), '/subnets/', variables('subnetName'))]"
+        }
+      },
+      "dependsOn": [
+        "[variables('vnetName')]"
+      ]
+    },
+    // Below are resources for a VM to test the config
+    {
+      "condition": "[parameters('createTesterVM')]",
+      "type": "Microsoft.Network/networkSecurityGroups/securityRules",
+      "apiVersion": "2019-02-01",
+      "name": "[concat(variables('nsgName'), '/', 'RDP')]",
+      "properties": {
+        "priority": 300,
+        "protocol": "TCP",
+        "access": "Allow",
+        "direction": "Inbound",
+        "sourceAddressPrefix": "*",
+        "sourcePortRange": "*",
+        "destinationAddressPrefix": "*",
+        "destinationPortRange": "3389"
+      },
+      "dependsOn": [
+        "[variables('nsgName')]"
+      ]
+    },
+    {
+      "condition": "[parameters('createTesterVM')]",
+      "type": "Microsoft.Network/publicIpAddresses",
+      "apiVersion": "2019-02-01",
+      "name": "[variables('pipName')]",
+      "location": "[parameters('location')]",
+      "sku": {
+        "name": "Basic"
+      },
+      "properties": {
+        "publicIpAllocationMethod": "Dynamic"
+      }
+    },
+    {
+      "condition": "[parameters('createTesterVM')]",
+      "type": "Microsoft.Network/networkInterfaces",
+      "apiVersion": "2019-07-01",
+      "name": "[variables('vmNic')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Network/networkSecurityGroups/', variables('nsgName'))]",
+        "[resourceId('Microsoft.Network/publicIpAddresses/', variables('pipName'))]"
+      ],
+      "properties": {
+        "ipConfigurations": [
+          {
+            "name": "ipconfig1",
+            "properties": {
+              "subnet": {
+                "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetName'))]"
+              },
+              "privateIPAllocationMethod": "Dynamic",
+              "publicIpAddress": {
+                "id": "[resourceId('Microsoft.Network/publicIpAddresses', variables('pipName'))]"
+              }
+            }
+          }
+        ],
+        "networkSecurityGroup": {
+          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
+        }
+      }
+    },
+    {
+      "condition": "[parameters('createTesterVM')]",
+      "type": "Microsoft.Compute/virtualMachines",
+      "apiVersion": "2019-07-01",
+      "name": "[variables('vmName')]",
+      "location": "[parameters('location')]",
+      "dependsOn": [
+        "[concat('Microsoft.Network/networkInterfaces/', variables('vmNic'))]"
+      ],
+      "identity": {
+        "type": "systemAssigned"
+      },
+      "properties": {
+        "hardwareProfile": {
+          "vmSize": "Standard_DS1_v2"
+        },
+        "storageProfile": {
+          "osDisk": {
+            "createOption": "fromImage",
+            "managedDisk": {
+              "storageAccountType": "Premium_LRS"
+            }
+          },
+          "imageReference": {
+            "publisher": "MicrosoftWindowsServer",
+            "offer": "WindowsServer",
+            "sku": "2016-Datacenter",
+            "version": "latest"
+          }
+        },
+        "networkProfile": {
+          "networkInterfaces": [
+            {
+              "id": "[resourceId('Microsoft.Network/networkInterfaces', variables('vmNic'))]"
+            }
+          ]
+        },
+        "osProfile": {
+          "computerName": "[variables('vmName')]",
+          "adminUsername": "[parameters('adminUsername')]",
+          "adminPassword": "[parameters('adminPassword')]",
+          "windowsConfiguration": {
+            "enableAutomaticUpdates": true,
+            "provisionVmAgent": true
+          }
+        }
+      }
+    }
+  ],
+  "outputs": {
+  },
+  "functions": [
+  ]
+}
