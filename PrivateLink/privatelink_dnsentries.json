@@ -29,4 +29,3 @@
     }
   ]
 }
-"[concat(json(concat('[{\"ipv4Address\":\"', parameters('ipConfig').properties.privateIPAddress,'\"}]')))]",
