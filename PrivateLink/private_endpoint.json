@@ -10,6 +10,15 @@
       "type": "string",
       "defaultValue": "10.151.0.0/16"
     },
+    "groupIds": {
+      "type": "array",
+      "defaultValue":[
+        "table"
+      ],
+      "metadata":{
+        "description": "list of ids to use, like blob, table, queue etc. Only one group Id is permitted when connecting to a first-party resource"
+      }
+    },
     "createDnsEntries": {
       "type": "bool",
       "defaultValue": true,
@@ -148,6 +157,7 @@
         "mode": "Incremental",
         "parameters":{
           "location": {"value": "[parameters('location')]"},
+          "groupIds": {"value": "[parameters('groupIds')]"},
           "privateEndpointName": {"value": "[variables('privateEndpointName')]"},
           "privateEndpointConnectionName": {"value": "[variables('privateEndpointConnectionName')]"},
           "privateStorageId": {"value": "[resourceId('Microsoft.Storage/storageAccounts', variables('privateStorageName'))]"},
