@@ -37,7 +37,7 @@
       },
       "copy": {
         "name": "ipconfigCopy",
-        "count": "[length(reference(parameters('storageNicId'), '2019-11-01').properties.ipConfigurations)]",
+        "count": 1,
         "mode": "parallel"
       }
     }
