@@ -106,7 +106,7 @@
     {
       "condition": "[parameters('createTesterVM')]",
       "type": "Microsoft.Network/networkSecurityGroups/securityRules",
-      "apiVersion": "2019-02-01",
+      "apiVersion": "2019-09-01",
       "name": "[concat(variables('nsgName'), '/', 'DenyInternet')]",
       "properties": {
         "priority": 100,
@@ -148,7 +148,7 @@
     {
       // If no DNS is needed, this can be done in the same template as other resources.
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-01-01",
+      "apiVersion": "2019-10-01",
       "name": "[variables('privateEndpointName')]",
       "dependsOn": [
         "[variables('vnetName')]"
@@ -203,7 +203,7 @@
     {
       "condition": "[parameters('createDnsEntries')]",
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-01-01",
+      "apiVersion": "2019-10-01",
       "name": "PrivateDns_Entries_IpconfigParser",
       "dependsOn": [
         "[variables('privateEndpointName')]"
@@ -225,7 +225,7 @@
     {
       "condition": "[parameters('createTesterVM')]",
       "type": "Microsoft.Network/networkSecurityGroups/securityRules",
-      "apiVersion": "2019-02-01",
+      "apiVersion": "2019-09-01",
       "name": "[concat(variables('nsgName'), '/', 'RDP')]",
       "properties": {
         "priority": 300,

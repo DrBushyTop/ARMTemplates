@@ -31,7 +31,7 @@
     // the next one so we can loop through it the correct number of times.
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2020-01-01",
+      "apiVersion": "2019-10-01",
       "name": "PrivateDns_Entries_Handler",
       "properties": {
         "mode": "Incremental",
