@@ -5,10 +5,16 @@
     "privateDnsZoneName": {
       "type":"string"
     },
-    "Ipconfigs": {
-      "type":"array",
+    "storageNicId": {
+      "type":"string",
       "metadata":{
         "description": "resource id to ipConfigurations array of private endpoint nic"
+      }
+    },
+    "dnsEntriesHandlerTemplateUri": {
+      "type":"string",
+      "metadata":{
+        "description": "Uri for template that loops through ip configurations"
       }
     },
     "dnsEntriesTemplateUri": {
@@ -21,24 +27,22 @@
   "variables": {
   },
   "resources": [
+    // The only thing this template does is uses the reference function on the ID and passes on the ipconfigurations array to
+    // the next one so we can loop through it the correct number of times.
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2020-01-01",
-      "name": "[concat('PrivateDnsFQDN', copyIndex(1))]",
+      "name": "PrivateDns_Entries_Handler",
       "properties": {
         "mode": "Incremental",
         "parameters":{
           "privateDnsZoneName": {"value": "[parameters('privateDnsZoneName')]"},
-          "storageNicIpConf": {"value": "[parameters('Ipconfigs')[copyIndex()]]"}
+          "ipConfigArray": {"value": "[reference(parameters('storageNicId'), '2019-11-01').ipConfigurations]"},
+          "dnsEntriesTemplateUri": {"value": "[parameters('dnsEntriesTemplateUri')]"}
         },
         "templateLink":{
-          "uri": "[parameters('dnsEntriesTemplateUri')]"
+          "uri": "[parameters('dnsEntriesHandlerTemplateUri')]"
         }
-      },
-      "copy": {
-        "name": "ipconfigCopy",
-        "count": "[length(parameters('Ipconfigs'))]",
-        "mode": "parallel"
       }
     }
   ],

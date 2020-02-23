@@ -182,7 +182,7 @@
     {
       "type": "Microsoft.Resources/deployments",
       "apiVersion": "2020-01-01",
-      "name": "PrivateDns_Entries_Handler",
+      "name": "PrivateDns_Entries_IpconfigParser",
       "dependsOn": [
         "[variables('privateEndpointName')]"
       ],
@@ -191,7 +191,8 @@
         "parameters":{
           "privateDnsZoneName": {"value": "[variables('privateDnsZoneName')]"},
           "storageNicId": {"value": "[reference(variables('privateEndpointName')).outputs.storageNicId.value]"},
-          "dnsEntriesTemplateUri": {"value": "[variables('dnsEntriesTemplateUri')]"}
+          "dnsEntriesTemplateUri": {"value": "[variables('dnsEntriesTemplateUri')]"},
+          "dnsEntriesHandlerTemplateUri": {"value": "[variables('dnsEntriesHandlerTemplateUri')]"}
         },
         "templateLink":{
           "uri": "[variables('dnsEntriesHandlerTemplateUri')]"
