@@ -190,7 +190,8 @@
         "mode": "Incremental",
         "parameters":{
           "privateDnsZoneName": {"value": "[variables('privateDnsZoneName')]"},
-          "storageNicId": {"value": "[reference(variables('privateEndpointName')).outputs.storageNicId.value]"}
+          "storageNicId": {"value": "[reference(variables('privateEndpointName')).outputs.storageNicId.value]"},
+          "dnsEntriesTemplateUri": {"value": "[variables('dnsEntriesTemplateUri')]"}
         },
         "templateLink":{
           "uri": "[variables('dnsEntriesHandlerTemplateUri')]"
