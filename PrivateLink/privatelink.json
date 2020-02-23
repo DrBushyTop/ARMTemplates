@@ -156,10 +156,10 @@
     },
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-04-01",
+      "apiVersion": "2020-01-01",
       "name": "[variables('privateEndpointName')]",
       "dependsOn": [
-        "[variables('privateDnsZoneName')]"
+        "[variables('vnetName')]"
       ],
       "properties": {
         "mode": "Incremental",
@@ -172,10 +172,7 @@
         },
         "templateLink":{
           "uri": "[variables('privateEndpointTemplateUri')]"
-        },
-        "dependsOn": [
-        "[variables('vnetName')]"
-        ]
+        }
       }
     },
     // Need to do this loop as linked deployment.
@@ -184,7 +181,7 @@
     // After the handler template gets the ID, it references the ipconfigurations array of that NIC... Very complicated all because of ARM limitations.
     {
       "type": "Microsoft.Resources/deployments",
-      "apiVersion": "2019-04-01",
+      "apiVersion": "2020-01-01",
       "name": "PrivateDns_Entries_Handler",
       "dependsOn": [
         "[variables('privateEndpointName')]"
