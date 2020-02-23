@@ -37,7 +37,7 @@
         "mode": "Incremental",
         "parameters":{
           "privateDnsZoneName": {"value": "[parameters('privateDnsZoneName')]"},
-          "ipConfigArray": {"value": "[reference(parameters('storageNicId'), '2019-11-01').ipConfigurations]"},
+          "Ipconfigs": {"value": "[reference(parameters('storageNicId'), '2019-11-01').ipConfigurations]"},
           "dnsEntriesTemplateUri": {"value": "[parameters('dnsEntriesTemplateUri')]"}
         },
         "templateLink":{
