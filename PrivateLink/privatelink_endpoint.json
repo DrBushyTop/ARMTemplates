@@ -14,6 +14,15 @@
     "subnetId": {
       "type": "string"
     },
+    "groupIds": {
+      "type": "array",
+      "defaultValue":[
+        "blob"
+      ],
+      "metadata":{
+        "description": "list of ids to use, like blob, table, queue etc."
+      }
+    },
     "location": {
       "type": "string"
     }
@@ -34,9 +43,7 @@
             "name": "[parameters('privateEndpointConnectionName')]",
             "properties": {
               "privateLinkServiceId": "[parameters('privateStorageId')]",
-              "groupIds": [
-                "blob"
-              ]
+              "groupIds": "[parameters('groupIds')]"
             }
           }
         ],
