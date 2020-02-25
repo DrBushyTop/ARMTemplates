@@ -13,7 +13,13 @@
     "groupIds": {
       "type": "array",
       "defaultValue":[
-        "table"
+        "blob"
+      ],
+      "allowedValues":[
+        ["blob"],
+        ["file"],
+        ["table"],
+        ["queue"]
       ],
       "metadata":{
         "description": "list of ids to use, like blob, table, queue etc. Only one group Id is permitted when connecting to a first-party resource"
@@ -60,8 +66,8 @@
     "dnsEntriesIpconfigParserUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries_ipconfigParser.json",
     "dnsEntriesHandlerTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries_handler.json",
     "dnsEntriesTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries.json",
-    // Don't change this value
-    "privateDnsZoneName": "privatelink.blob.core.windows.net"
+    // Don't change this value. See https://docs.microsoft.com/en-us/azure/private-link/private-endpoint-overview#dns-configuration
+    "privateDnsZoneName": "[concat('privatelink.', parameters('groupIds')[0], '.core.windows.net')]"
   },
   "resources": [
     {
