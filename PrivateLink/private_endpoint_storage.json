@@ -20,7 +20,8 @@
         ["file"],
         ["table"],
         ["queue"],
-        ["web"]
+        ["web"],
+        ["dfs"]
       ],
       "metadata":{
         "description": "list of ids to use, like blob, table, queue etc. Only one group Id is permitted when connecting to a first-party resource"
@@ -67,7 +68,7 @@
     "dnsEntriesIpconfigParserUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries_ipconfigParser.json",
     "dnsEntriesHandlerTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries_handler.json",
     "dnsEntriesTemplateUri": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/PrivateLink/privatelink_dnsentries.json",
-    // Don't change this value. See https://docs.microsoft.com/en-us/azure/private-link/private-endpoint-overview#dns-configuration
+    // Before thinking about changing this, see https://docs.microsoft.com/en-us/azure/private-link/private-endpoint-overview#dns-configuration
     "privateDnsZoneName": "[concat('privatelink.', parameters('groupIds')[0], '.core.windows.net')]"
   },
   "resources": [
@@ -117,12 +118,12 @@
       "name": "[concat(variables('nsgName'), '/', 'DenyInternet')]",
       "properties": {
         "priority": 100,
-        "protocol": "TCP",
+        "protocol": "*",
         "access": "Deny",
         "direction": "Outbound",
         "sourceAddressPrefix": "*",
         "sourcePortRange": "*",
-        "destinationAddressPrefix": "*",
+        "destinationAddressPrefix": "Internet",
         "destinationPortRange": "*"
       },
       "dependsOn": [
@@ -228,6 +229,35 @@
         }
       }
     },
+    // If you want to run the template in complete mode, you could do something like this after the first deployment (when you know the name of the endpoint NIC). Note that we are required to give a location, but this did not seem to break anything.
+    // {
+    //   "type": "Microsoft.Network/networkInterfaces",
+    //   "apiVersion": "2019-11-01",
+    //   "name": "[if(equals(parameters('environment'), 'dev'), 'concat(variables('privateEndpointName'), '.nic.d8042cd3-2add-4255-a2f6-36e3a8369b77'), '')]",
+    //   "location": "[parameters('location')]",
+    //   "dependsOn": [
+    //     "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
+    //   ],
+    //   "properties": {
+    //     "ipConfigurations": [
+    //       {
+    //         "name": "blob-blob.privateEndpoint",
+    //         "properties": {
+    //           "privateIPAllocationMethod": "Dynamic",
+    //           "subnet": {
+    //             "id": "[resourceId('Microsoft.Network/virtualNetworks/subnets', variables('vnetName'), variables('subnetName'))]"
+    //           },
+    //           "primary": true,
+    //           "privateIPAddressVersion": "IPv4"
+    //         }
+    //       }
+    //     ],
+    //     "enableAcceleratedNetworking": false,
+    //     "enableIPForwarding": false
+    //   }
+    // },
+
+
     // Below are resources for a VM to test the config
     {
       "condition": "[parameters('createTesterVM')]",
@@ -269,7 +299,8 @@
       "location": "[parameters('location')]",
       "dependsOn": [
         "[resourceId('Microsoft.Network/networkSecurityGroups/', variables('nsgName'))]",
-        "[resourceId('Microsoft.Network/publicIpAddresses/', variables('pipName'))]"
+        "[resourceId('Microsoft.Network/publicIpAddresses/', variables('pipName'))]",
+        "[resourceId('Microsoft.Network/virtualNetworks', variables('vnetName'))]"
       ],
       "properties": {
         "ipConfigurations": [
@@ -285,10 +316,7 @@
               }
             }
           }
-        ],
-        "networkSecurityGroup": {
-          "id": "[resourceId('Microsoft.Network/networkSecurityGroups', variables('nsgName'))]"
-        }
+        ]
       }
     },
     {
