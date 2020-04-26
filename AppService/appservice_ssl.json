@@ -1,0 +1,148 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "customDomain": {
+      "type": "string"
+    },
+    "sslCertKeyVaultResourceId": {
+      "type": "securestring",
+      "metadata":{
+        "description": "Resource Id of the key vault that holds the ssl certificate resource. Service principal needs vaults/write permissions to access it"
+      }
+    },
+    "sslCertKeyVaultSecretName": {
+      "type": "securestring",
+      "metadata":{
+        "description": "Name of the Certificate resource in the key vault"
+      }
+    }
+  },
+  "variables": {
+    "uiFuncPlanName": "[concat(uniqueString(resourceGroup().id), '-func')]",
+    "uiFuncName": "[concat(uniqueString(resourceGroup().id), 'ui')]",
+    "uiStorageName": "[concat(uniqueString(resourceGroup().id), 'uistor')]",
+    "location": "[resourceGroup().location]"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2018-02-01",
+      "name": "[variables('uiStorageName')]",
+      "location": "[variables('location')]",
+      "tags": {
+        "displayName": "Frontend Storage account"
+      },
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2016-09-01",
+      "name": "[variables('uiFuncPlanName')]",
+      "location": "[variables('location')]",
+      "tags": {
+        "displayName": "Frontend Consumption Plan"
+      },
+      "sku": {
+        "name": "Y1",
+        "tier": "Dynamic",
+        "size": "Y1",
+        "family": "Y",
+        "capacity": 0
+      },
+      "kind": "functionapp",
+      "properties": {
+        "name": "[variables('uiFuncPlanName')]"
+      },
+      "dependsOn": [
+      ]
+    },
+    {
+      "name": "[parameters('customDomain')]",
+      "type": "Microsoft.Web/certificates",
+      "apiVersion": "2019-08-01",
+      "location": "[variables('location')]",
+      "tags": {
+        "displayName": "Custom domain certificate"
+      },
+      "properties": {
+        // Requires vaults/write permission on the key vault for the deploying service principal
+        // Requires vaults/read permission on the key vault and "Get" Access Policy for Secrets for the "Microsoft Azure App Service" principal
+        "keyVaultId": "[parameters('sslCertKeyVaultResourceId')]",
+        "keyVaultSecretName": "[parameters('sslCertKeyVaultSecretName')]"
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2016-08-01",
+      "name": "[variables('uiFuncName')]",
+      "location": "[variables('location')]",
+      "tags": {
+        "displayName": "Frontend Proxy Function"
+      },
+      "kind": "functionapp",
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('uiFuncPlanName'))]",
+        "httpsOnly": true,
+        "siteConfig": {
+          "appSettings": [
+            {
+              "name": "AzureWebJobsDashboard",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('uiStorageName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('uiStorageName')), '2018-02-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+            },
+            {
+              "name": "AzureWebJobsStorage",
+              "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('uiStorageName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('uiStorageName')), '2018-02-01').keys[0].value, ';EndpointSuffix=core.windows.net')]"
+            },
+            {
+              "name": "FUNCTIONS_EXTENSION_VERSION",
+              "value": "~2"
+            },
+            {
+              "name": "FUNCTIONS_WORKER_RUNTIME",
+              "value": "dotnet"
+            }
+          ]
+        }
+      },
+      "resources":[
+        {
+          "name": "[parameters('customDomain')]",
+          "type": "hostNameBindings",
+          "apiVersion":"2019-08-01",
+          "properties":{
+            "sslState": "SniEnabled",
+            "thumbprint": "[reference(resourceId('Microsoft.Web/certificates', parameters('customDomain'))).Thumbprint]"
+          },
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('uiFuncName'))]",
+            "[resourceId('Microsoft.Web/certificates', parameters('customDomain'))]"
+          ]
+        }
+      ],
+      "dependsOn": [
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('uiStorageName'))]",
+        "[resourceId('Microsoft.Web/serverfarms', variables('uiFuncPlanName'))]"
+      ]
+    }
+  ],
+  "outputs": {
+    "uiStorageAccountName": {
+      "type": "string",
+      "value": "[variables('uiStorageName')]"
+    }
+  }
+}
