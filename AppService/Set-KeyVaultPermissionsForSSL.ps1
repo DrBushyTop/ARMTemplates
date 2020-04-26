@@ -24,7 +24,6 @@ if (!$customRoleDefinitionId) { $customRoleDefinitionId = (Get-AzRoleDefinition 
 $readerRoleDefinitionId = (Get-AzRoleDefinition -Name "Reader").Id
 
 # Set required roleassignments
-
 New-AzRoleAssignment -ObjectId $servicePrincipalObjectId -RoleDefinitionId $customRoleDefinitionId -Scope $keyVaultID
 New-AzRoleAssignment -ObjectId $servicePrincipalObjectId -RoleDefinitionId $readerRoleDefinitionId -Scope $keyVaultID
 Set-AzKeyVaultAccessPolicy -ServicePrincipalName $AppServiceRPSPId -ResourceId $keyVaultID -PermissionsToSecrets "Get"
