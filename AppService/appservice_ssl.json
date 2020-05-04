@@ -76,7 +76,7 @@
         "displayName": "Custom domain certificate"
       },
       "properties": {
-        // Requires vaults/write permission on the key vault for the deploying service principal
+        // Requires vaults/deploy/action permission on the key vault for the deploying service principal
         // Requires vaults/read permission on the key vault and "Get" Access Policy for Secrets for the "Microsoft Azure App Service" principal
         "keyVaultId": "[parameters('sslCertKeyVaultResourceId')]",
         "keyVaultSecretName": "[parameters('sslCertKeyVaultSecretName')]"
