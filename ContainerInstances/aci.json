@@ -50,6 +50,9 @@
       "apiVersion": "2018-10-01",
       "name": "[variables('containerName')]",
       "location": "[parameters('location')]",
+      "identity": {
+        "type": "SystemAssigned"
+      },
       "properties": {
           "containers": [
             {
