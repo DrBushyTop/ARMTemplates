@@ -1,0 +1,80 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope"
+    },
+    "containerTag": {
+      "type": "string",
+      "metadata": {
+        "description": "Tag for container to fetch, without the :"
+      }
+    },
+    "computeResources": {
+      "type": "object",
+      "defaultValue": {
+        "numberOfCores": "1",
+        "memoryInGB": "1.5" 
+      }
+    },
+    "ports": {
+      "type": "array",
+      "defaultValue": [
+        {
+            "port": "80",
+            "protocol": "TCP"
+        },
+        {
+            "port": "443",
+            "protocol": "TCP"
+        } 
+      ]
+    }
+  },
+  "variables": {
+    "containerName": "myContainer",
+    "acrName": "myAcr",
+    "acrRG": "myRG"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.ContainerInstance/containerGroups",
+      "apiVersion": "2018-10-01",
+      "name": "[variables('containerName')]",
+      "location": "[parameters('location')]",
+      "properties": {
+          "containers": [
+            {
+              "name": "[variables('containerName')]",
+              "properties": {
+                "image": "[concat(variables('acrName'), '.azurecr.io', '/', variables('containerName'), ':', parameters('containerTag'))]",
+                "resources": {
+                  "requests": {
+                    "cpu": "[int(parameters('computeResources').numberOfCores)]",
+                    "memoryInGB": "[float(parameters('computeResources').memoryInGB)]"
+                  }
+                },
+                "ports": "[parameters('ports')]"
+              }
+            }
+        ],
+        "restartPolicy": "OnFailure",
+        "osType": "Linux",
+        "imageRegistryCredentials": [
+          {
+            "server": "[concat(variables('acrName'), '.azurecr.io')]",
+            "username": "[variables('acrName')]",
+            "password": "[listCredentials(resourceId(variables('acrRG'), 'Microsoft.ContainerRegistry/registries', variables('acrName')), '2019-12-01-preview').passwords[0].value]"
+          }
+        ],
+        "ipAddress": {
+            "type": "Public",
+            "ports": "[parameters('ports')]"
+        }
+    }
+  }
+  ],
+  "outputs": {}
+}
