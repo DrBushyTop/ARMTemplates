@@ -12,6 +12,12 @@
         "description": "Tag for container to fetch, without the :"
       }
     },
+    "dnsLabel": {
+      "type": "string",
+      "metadata": {
+        "description": "Dns for the container group. Will result in <DnsLabel>.<location>.azurecontainer.io"
+      }
+    },
     "computeResources": {
       "type": "object",
       "defaultValue": {
@@ -71,7 +77,8 @@
         ],
         "ipAddress": {
             "type": "Public",
-            "ports": "[parameters('ports')]"
+            "ports": "[parameters('ports')]",
+            "dnsNameLabel": "[parameters('dnsLabel')]"
         }
     }
   }
