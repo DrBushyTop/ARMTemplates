@@ -30,7 +30,7 @@
       "apiVersion":"2019-08-01",
       "properties":{
         "sslState": "SniEnabled",
-        "thumbprint": "[reference(resourceId(parameters('certRg'), 'Microsoft.Web/certificates', parameters('customDomain'))).Thumbprint]"
+        "thumbprint": "[reference(resourceId(parameters('certRg'), 'Microsoft.Web/certificates', parameters('customDomain')), providers('Microsoft.Web', 'certificates').apiVersions[0]).Thumbprint]"
       }
     }
   ],
