@@ -1,0 +1,32 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "webAppName": {
+      "type": "string",
+      "metadata": {
+        "description": "Name of the Web App"
+      }
+    },
+    "customDomain": {
+      "type": "string",
+      "metadata": {
+        "description": "Custom Domain URL, e.g. www.mysite.com"
+      }
+    }
+  },
+  "variables": {},
+  "resources": [
+    {
+      "name": "[concat(parameters('webAppName'), '/', parameters('customDomain'))]",
+      "type": "microsoft.Web/sites/hostNameBindings",
+      "apiVersion":"2019-08-01",
+      "properties":{
+        "sslState": "SniEnabled",
+        "thumbprint": "[reference(resourceId('Microsoft.Web/certificates', parameters('customDomain'))).Thumbprint]"
+      }
+    }
+  ],
+  "outputs": {
+  }
+}
