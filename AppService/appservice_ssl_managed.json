@@ -1,0 +1,246 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "sslType": {
+      "type": "string",
+      "allowedValues": [
+        "letsencrypt",
+        "managed"
+      ],
+      "metadata": {
+        "description": "Type of the SSL setup"
+      }
+    },
+    "webAppSku": {
+      "type": "object",
+      "defaultValue": {
+        "name": "S1",
+        "tier": "Standard",
+        "size": "S1",
+        "family": "S",
+        "capacity": 1
+      }
+    },
+    "letsEncryptConfig": {
+      "type": "secureObject",
+      "metadata": {
+        "description": "All Let's Encrypt configs. Only needed if let's encrypt is used. SP needs contributor to app service & plan"
+      },
+      "defaultValue": {
+        "tenant": "mytenant.onmicrosoft.com",
+        "clientId": "mySPAppID",
+        "clientSecret": "mySPSecret",
+        "email": "myemail@gmail.com"
+      }
+    },
+    "customDomain": {
+      "type": "string",
+      "metadata": {
+        "description": "Custom Domain URL, e.g. www.mysite.com"
+      }
+    },
+    "location": {
+      "type": "string",
+      "defaultValue": "westeurope"
+    },
+    "environment": {
+      "type": "string",
+      "defaultValue": "Test",
+      "allowedValues": [
+        "Development",
+        "Test",
+        "Production"
+      ],
+      "metadata": {
+        "description": "Defines whether to use staging or prod letsencrypt domains. Prod only allows for 5 certs per domain weekly."
+      }
+    }
+  },
+  "variables": {
+    "webAppPlanName": "[concat('plan-', resourceGroup().name)]",
+    "webAppName": "[concat('app-', parameters('sslType') ,'-', resourceGroup().name)]",
+    "webAppStorageName": "[concat('s', uniqueString(resourceGroup().id))]",
+    // "updateArmUrl": "[concat(uri(deployment().properties.templateLink.uri, 'appservice_hostname_update.json'))]"
+    "updateArmUrl": "https://raw.githubusercontent.com/DrBushyTop/ARMTemplates/master/AppService/appservice_hostname_update.json"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.Web/serverfarms",
+      "apiVersion": "2019-08-01",
+      "name": "[variables('webAppPlanName')]",
+      "location": "[parameters('location')]",
+      "sku": "[parameters('webAppSku')]",
+      "tags": {
+        "displayName": "Common App Service Plan"
+      },
+      "properties": {
+      }
+    },
+    {
+      "type": "Microsoft.Web/sites",
+      "apiVersion": "2019-08-01",
+      "name": "[variables('webAppName')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "displayName": "API Web App"
+      },
+      "kind": "app",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('webAppPlanName'))]",
+        "clientAffinityEnabled": false,
+        "httpsOnly": true
+      },
+      "identity": {
+        "type": "SystemAssigned"
+      },
+      "resources": [
+        {
+          "apiVersion": "2019-08-01",
+          "type": "config",
+          "name": "web",
+          "tags": {
+            "displayName": "Config"
+          },
+          "properties": {
+            "use32BitWorkerProcess": false,
+            "alwaysOn": true,
+            "netFrameworkVersion": "v4.7",
+            "defaultDocuments": [
+              "index.html",
+              "hostingstart.html"
+            ]
+          },
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+          ]
+        },
+        {
+          "name": "[parameters('customDomain')]",
+          "type": "hostNameBindings",
+          "apiVersion":"2019-08-01",
+          "properties":{
+          },
+          "dependsOn": [
+            "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+          ]
+        }
+      ],
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('webAppPlanName'))]"
+      ]
+    },
+    // Let's Encrypt
+    {
+      "type": "Microsoft.Storage/storageAccounts",
+      "apiVersion": "2018-02-01",
+      "name": "[variables('webAppStorageName')]",
+      "location": "[parameters('location')]",
+      "tags": {
+        "displayName": "Web App Log storage"
+      },
+      "kind": "StorageV2",
+      "sku": {
+        "name": "Standard_LRS",
+        "tier": "Standard"
+      },
+      "properties": {
+        "supportsHttpsTrafficOnly": true,
+        "accessTier": "Hot"
+      }
+    },
+    {
+      "condition": "[equals(parameters('sslType'), 'letsencrypt')]",
+      "type": "Microsoft.Web/sites/siteextensions",
+      "apiVersion": "2019-08-01",
+      "name": "[concat(variables('webAppName'), '/letsencrypt')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+      ]
+    },
+    {
+      "apiVersion": "2019-08-01",
+      "type": "Microsoft.Web/sites/config",
+      "name": "[concat(variables('webAppName'), '/connectionstrings')]",
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+      ],
+      "properties": {
+        "AzureWebJobsStorage": {
+          "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('webAppStorageName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('webAppStorageName')), '2018-02-01').keys[0].value, ';')]",
+          "type": 3
+        },
+        "AzureWebJobsDashboard": {
+          "value": "[concat('DefaultEndpointsProtocol=https;AccountName=', variables('webAppStorageName'), ';AccountKey=', listKeys(resourceId('Microsoft.Storage/storageAccounts', variables('webAppStorageName')), '2018-02-01').keys[0].value, ';')]",
+          "type": 3
+        }
+      }
+    },
+    {
+      "condition": "[equals(parameters('sslType'), 'letsencrypt')]",
+      "apiVersion": "2019-08-01",
+      "type": "Microsoft.Web/sites/config",
+      "name": "[concat(variables('webAppName'), '/appsettings')]",
+      "tags": {
+        "displayName": "App settings"
+      },
+      "properties": {
+        // https://github.com/sjkp/letsencrypt-siteextension
+        "letsencrypt:Tenant": "[parameters('letsEncryptConfig').Tenant]",
+        "letsencrypt:SubscriptionId": "[subscription().subscriptionId]",
+        "letsencrypt:ClientId": "[parameters('letsEncryptConfig').clientId]",
+        "letsencrypt:ClientSecret": "[parameters('letsEncryptConfig').clientSecret]",
+        "letsencrypt:ResourceGroupName": "[resourceGroup().name]",
+        "letsencrypt:ServicePlanResourceGroupName": "[resourceGroup().name]",
+        "letsencrypt:UseIPBasedSSL": "false",
+        "letsencrypt:AcmeBaseUri": "[if(equals(parameters('environment'), 'Production'), 'https://acme-v02.api.letsencrypt.org/directory', 'https://acme-staging-v02.api.letsencrypt.org/directory')]",
+        "letsencrypt:Email": "[parameters('letsEncryptConfig').email]",
+        "letsencrypt:Hostnames": "[parameters('customDomain')]",
+        "WEBSITE_ADD_SITENAME_BINDINGS_IN_APPHOST_CONFIG": "1"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]",
+        "[resourceId('Microsoft.Storage/storageAccounts', variables('webAppStorageName'))]"
+      ]
+    },
+    // Managed
+    {
+      "condition": "[equals(parameters('sslType'), 'managed')]",
+      "name": "[parameters('customDomain')]",
+      "type": "Microsoft.Web/certificates",
+      "apiVersion": "2018-11-01",
+      "location": "[parameters('location')]",
+      "properties": {
+        "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('webAppPlanName'))]",
+        "canonicalName": "[parameters('customDomain')]"
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]"
+      ]
+    },
+    {
+      "condition": "[equals(parameters('sslType'), 'managed')]",
+      "apiVersion": "2019-10-01",
+      "name": "[concat(variables('webAppName'),'-update-hostname-ssl')]",
+      "type": "Microsoft.Resources/deployments",
+      "properties": {
+        "mode": "Incremental",
+        "templateLink": {
+          "uri": "[variables('updateArmUrl')]"
+        },
+        "parameters": {
+          "customDomain": { "value": "[parameters('customDomain')]" },
+          "webAppName": { "value": "[variables('webAppName')]" }
+        }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/sites', variables('webAppName'))]",
+        "[resourceId('Microsoft.Web/certificates', parameters('customDomain'))]"
+      ]
+    }
+  ],
+  "functions": [
+  ],
+  "outputs": {
+  }
+}
