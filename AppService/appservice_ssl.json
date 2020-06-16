@@ -80,7 +80,10 @@
         // Requires vaults/read permission on the key vault and "Get" Access Policy for Secrets for the "Microsoft Azure App Service" principal
         "keyVaultId": "[parameters('sslCertKeyVaultResourceId')]",
         "keyVaultSecretName": "[parameters('sslCertKeyVaultSecretName')]"
-      }
+      },
+      "dependsOn": [
+        "[resourceId('Microsoft.Web/serverfarms', variables('uiFuncPlanName'))]"
+      ]
     },
     {
       "type": "Microsoft.Web/sites",
