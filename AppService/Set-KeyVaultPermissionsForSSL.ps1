@@ -19,9 +19,8 @@ if ($keyvaultSubscriptionId) { Set-AzContext $keyvaultSubscriptionId}
 # Get Key Vault info
 $keyVaultID = (Get-AzResource -ResourceGroupName $keyVaultRG -Name $keyVaultName -ResourceType "Microsoft.KeyVault/vaults").ResourceId
 
-# Get role definition IDs
+# Get role definition ID
 if (!$customRoleDefinitionId) { $customRoleDefinitionId = (Get-AzRoleDefinition -RoleDefinitionName "Key Vault Contributor").Id }
-$readerRoleDefinitionId = (Get-AzRoleDefinition -Name "Reader").Id
 
 # Set required roleassignments
 New-AzRoleAssignment -ObjectId $servicePrincipalObjectId -RoleDefinitionId $customRoleDefinitionId -Scope $keyVaultID
